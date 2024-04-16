@@ -394,6 +394,14 @@ static int yaf_loader_identify_category(yaf_loader_object *loader, zend_string *
 	int suspense_type = YAF_CLASS_NAME_NORMAL;
 
 	if (EXPECTED(yaf_loader_is_name_suffix(loader))) {
+		/* add by bingo */
+		yaf_application_object *app = yaf_application_instance();
+        if (app->module_mode) {
+            if (strncmp(name, "app\\", 4) != 0) {
+                return YAF_CLASS_NAME_NORMAL;
+            }
+        }
+
 		switch (name[len - 1]) {
 			case 'l':
 				suspense_name = YAF_LOADER_MODEL;
@@ -623,6 +631,31 @@ static zend_never_inline int yaf_loader_load_mvc(yaf_loader_object *loader, char
 			break;
 	}
 
+	/* add by bingo */
+    size_t module_name_len;
+    char *module_name;
+    if (app->module_mode) {
+        buf += 4;
+        len -= 4;
+        char *pos;
+        pos = strchr(buf, '_');
+        if (pos != NULL) {
+            module_name_len = pos - buf;
+            module_name = estrndup(buf, module_name_len);
+            if (!yaf_application_is_module_name(zend_string_init(module_name, module_name_len, 0))) {
+                php_error_docref(NULL, E_WARNING, "There is no module %s for controller class %s", module_name, buf);
+            }
+            buf += module_name_len + 1;
+
+            len -= (module_name_len + 1);
+            library_dir = strpprintf(0, "%s%c%s%c%s", ZSTR_VAL(app->directory), DEFAULT_SLASH, YAF_MODULE_DIRECTORY_NAME, DEFAULT_SLASH, module_name);
+        } else {
+            library_dir = app->directory;
+        }
+    } else {
+        library_dir = app->directory;
+    }
+
 	len -= (folder_len - 1); /* models -> model etc*/
 	if (EXPECTED(yaf_loader_is_name_suffix(loader))) {
 		name = buf;
@@ -654,8 +687,9 @@ static zend_never_inline int yaf_loader_load_mvc(yaf_loader_object *loader, char
 		*buf = '\0';
 		return 0;
 	}
-
-	library_dir = app->directory;
+	
+	/* add by bingo */
+	// library_dir = app->directory;
 	memmove(buf + ZSTR_LEN(library_dir) + 1 + folder_len + 1, name, len);
 	memcpy(buf, ZSTR_VAL(library_dir), ZSTR_LEN(library_dir));
 	buf[ZSTR_LEN(library_dir)] = DEFAULT_SLASH;

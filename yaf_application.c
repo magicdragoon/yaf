@@ -92,6 +92,11 @@ static void yaf_application_free(zend_object *object) /* {{{ */ {
 		}
 	}
 
+    /* add by bingo */
+    if (app->module_mode) {
+        zend_string_release(app->mvc_namespace);
+    }
+
 	zend_object_std_dtor(object);
 }
 /* }}} */
@@ -642,12 +647,40 @@ int yaf_application_parse_option(yaf_application_object *app) /* {{{ */ {
 	uint32_t items;
 
 	conf = Z_YAFCONFIGOBJ(app->config)->config;
-	if (UNEXPECTED((pzval = zend_hash_find(conf, YAF_KNOWN_STR(YAF_APPLICATION))) == NULL) || Z_TYPE_P(pzval) != IS_ARRAY) {
-		/* For back compatibilty */
-		if (((pzval = zend_hash_find(conf, YAF_KNOWN_STR(YAF))) == NULL) || Z_TYPE_P(pzval) != IS_ARRAY) {
-			return 0;
-		}
-	}
+	// if (UNEXPECTED((pzval = zend_hash_find(conf, YAF_KNOWN_STR(YAF_APPLICATION))) == NULL) || Z_TYPE_P(pzval) != IS_ARRAY) {
+    //     /* For back compatibilty */
+    //     if (((pzval = zend_hash_find(conf, YAF_KNOWN_STR(YAF))) == NULL) || Z_TYPE_P(pzval) != IS_ARRAY) {
+    //         return 0;
+    //     }
+    // }
+
+    /* add by bingo */
+    if (UNEXPECTED((pzval = zend_hash_find(conf, YAF_KNOWN_STR(YAF_APPLICATION))) != NULL) && 
+        Z_TYPE_P(pzval) == IS_ARRAY) {
+        /* add by bingo */
+        zval *psval;
+        
+        if ((psval = zend_hash_str_find(Z_ARRVAL_P(pzval), ZEND_STRL("moduleMode"))) != NULL) {
+            /* leave it to configs destructor */
+            app->module_mode = 1;
+            app->mvc_namespace = zend_string_init("app", sizeof("app") - 1, 0);
+        } else {
+            app->module_mode = 0;
+        }
+
+        /* add by bingo */
+        if ((psval = zend_hash_str_find(Z_ARRVAL_P(pzval), ZEND_STRL("dashUrl"))) != NULL) {
+            /* leave it to configs destructor */
+            app->dash_url = 1;
+        } else {
+            app->dash_url = 0;
+        }
+    } else {
+        /* For back compatibilty */
+        if (((pzval = zend_hash_find(conf, YAF_KNOWN_STR(YAF))) == NULL) || Z_TYPE_P(pzval) != IS_ARRAY) {
+            return 0;
+        }
+    }
 
 	conf = Z_ARRVAL_P(pzval);
 	if (UNEXPECTED((pzval = zend_hash_find(conf, YAF_KNOWN_STR(YAF_DIRECTORY))) == NULL ||

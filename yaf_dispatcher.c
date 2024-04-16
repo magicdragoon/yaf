@@ -292,6 +292,30 @@ static int yaf_dispatcher_init_view(yaf_dispatcher_object *dispatcher, zend_stri
 }
 /* }}} */
 
+/* add by bingo */
+static inline zend_string *yaf_dispatcher_fix_dash_url(zend_string *s) /* {{{ */ {
+        char *q, *p = zend_str_tolower_dup(ZSTR_VAL(s), ZSTR_LEN(s));
+        q = p;
+        *q = toupper(*q);
+        uint len = 0;
+        char *target = emalloc(ZSTR_LEN(s) + 1);
+        while (*q != '\0') {
+            if (*q == '_' || *q == '-' || *q == '\\') {
+                if (*(q+1) != '\0') {
+                    *(q+1) = toupper(*(q+1));
+                    q++;
+                }
+            }
+            if (*q != '-') {
+                target[len++] = *q;
+            }
+            q++;
+        }
+        target[len] = '\0';
+        return zend_string_init(target, len, 0);
+}
+/* }}} */
+
 static inline void yaf_dispatcher_fix_default(yaf_dispatcher_object *dispatcher, yaf_request_object *request) /* {{{ */ {
 	yaf_application_object *app = Z_YAFAPPOBJ(YAF_G(app));
 
@@ -301,10 +325,14 @@ static inline void yaf_dispatcher_fix_default(yaf_dispatcher_object *dispatcher,
 
 	if (request->controller == NULL) {
 		request->controller = zend_string_copy(app->default_controller);
+	} else if (app->dash_url) {
+		request->controller = yaf_dispatcher_fix_dash_url(request->controller);
 	}
 
 	if (request->action == NULL) {
 		request->action = zend_string_copy(app->default_action);
+	} else if (app->dash_url) {
+		request->action = yaf_dispatcher_fix_dash_url(request->action);
 	}
 }
 /* }}} */
@@ -355,9 +383,23 @@ static zend_class_entry *yaf_dispatcher_get_controller(zend_string *app_dir, yaf
 		directory_len += yaf_compose_2_pathes(directory + directory_len, module, ZEND_STRL(YAF_CONTROLLER_DIRECTORY_NAME));
 	}
 
-	STR_ALLOCA_ALLOC(lc_name, ZSTR_LEN(controller) + YAF_G(name_separator_len) + sizeof("controller") - 1, use_heap);
+    /* add by bingo */
+	yaf_application_object *app = yaf_application_instance();
+    zend_string *fix_module;
+    if (app->module_mode) {
+        fix_module = strpprintf(0, "%s\\%s\\", ZSTR_VAL(app->mvc_namespace), ZSTR_VAL(module));
+    }
+
+    STR_ALLOCA_ALLOC(lc_name, ZSTR_LEN(controller) + YAF_G(name_separator_len) + sizeof("controller") - 1 + ZSTR_LEN(fix_module), use_heap);	
 	if (EXPECTED(yaf_is_name_suffix())) {
 		char *p = ZSTR_VAL(lc_name);
+
+        /* add by bingo */
+    	if (app->module_mode) {
+            zend_str_tolower_copy(p, ZSTR_VAL(fix_module), ZSTR_LEN(fix_module));
+            p += ZSTR_LEN(fix_module);
+        }
+  
 		zend_str_tolower_copy(p, ZSTR_VAL(controller), ZSTR_LEN(controller));
 		p += ZSTR_LEN(controller);
 		if (UNEXPECTED(YAF_G(name_separator_len))) {
@@ -505,7 +547,9 @@ static ZEND_HOT int yaf_dispatcher_handle(yaf_dispatcher_object *dispatcher) /* 
 		ZEND_ASSERT(request->controller);
 		ZEND_ASSERT(request->action);
 
-		if (zend_string_equals(app->default_module, request->module)) {
+		/* add by bingo */
+        if (!app->module_mode && zend_string_equals(app->default_module, request->module)) {
+		// if (zend_string_equals(app->default_module, request->module)) {
 			is_def_module = 1;
 		}
 

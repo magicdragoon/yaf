@@ -39,6 +39,12 @@ typedef struct {
 	zend_string     *err_msg;
 	zend_array      *properties;
     zend_object      std;
+	
+    /* add by bingo */
+    zend_bool        dash_url;
+    zend_bool        module_mode;
+    zend_string     *mvc_namespace;
+    zend_string     *mvc_load;
 } yaf_application_object;
 
 #define Z_YAFAPPOBJ(zv)     ((php_yaf_application_fetch_object)(Z_OBJ(zv)))
